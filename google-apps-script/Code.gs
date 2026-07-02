@@ -127,9 +127,13 @@ function appendOrder(order) {
 function readOrders() {
   const sheet = getSheet();
   const values = sheet.getDataRange().getValues();
-  return values.slice(1).reverse().map((row) => {
+  return values.slice(1).filter((row) => row.some((cell) => cell !== "")).reverse().map((row) => {
     try {
-      return JSON.parse(row[8]);
+      const rawJson = row[8] || row[9];
+      if (rawJson) {
+        return JSON.parse(rawJson);
+      }
+      throw new Error("Missing raw order data.");
     } catch (error) {
       return {
         id: row[0],

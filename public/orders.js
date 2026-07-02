@@ -1,6 +1,14 @@
 const ordersList = document.querySelector("#ordersList");
 const refreshOrders = document.querySelector("#refreshOrders");
+const logoutButton = document.querySelector("#logoutButton");
+const loginPanel = document.querySelector("#loginPanel");
+const recordsPanel = document.querySelector("#recordsPanel");
+const loginForm = document.querySelector("#loginForm");
+const loginMessage = document.querySelector("#loginMessage");
 const API_BASE_URL = (window.ORDER_API_BASE_URL || "").replace(/\/$/, "");
+const AUTH_KEY = "orderSystemOrdersAuth";
+const ADMIN_USERNAME = "123";
+const ADMIN_PASSWORD = "123";
 
 function apiUrl(path) {
   if (API_BASE_URL) {
@@ -15,10 +23,19 @@ function money(value) {
 }
 
 function formatDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "時間未記錄";
+  }
+
   return new Intl.DateTimeFormat("zh-TW", {
     dateStyle: "medium",
     timeStyle: "short"
-  }).format(new Date(value));
+  }).format(date);
+}
+
+function normalizeItems(items) {
+  return Array.isArray(items) ? items : [];
 }
 
 function renderOrders(orders) {
@@ -39,7 +56,7 @@ function renderOrders(orders) {
         </div>
         <p>菜單日期：${order.dayName || order.dayId || "未指定"}</p>
         <div class="order-items">
-          ${order.items.map((item) => `<span>${item.name} x ${item.quantity}</span>`).join("")}
+          ${normalizeItems(order.items).map((item) => `<span>${item.name} x ${item.quantity}</span>`).join("") || "<span>餐點資料未記錄</span>"}
         </div>
         ${order.note ? `<p class="note">備註：${order.note}</p>` : ""}
         <small>訂單編號：${order.id}</small>
@@ -64,5 +81,48 @@ async function loadOrders() {
   }
 }
 
+function isAuthenticated() {
+  return sessionStorage.getItem(AUTH_KEY) === "true";
+}
+
+function showRecords() {
+  loginPanel.hidden = true;
+  recordsPanel.hidden = false;
+  loadOrders();
+}
+
+function showLogin() {
+  loginPanel.hidden = false;
+  recordsPanel.hidden = true;
+  ordersList.innerHTML = "";
+}
+
+loginForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const formData = new FormData(loginForm);
+  const username = String(formData.get("username") || "").trim();
+  const password = String(formData.get("password") || "").trim();
+
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    sessionStorage.setItem(AUTH_KEY, "true");
+    loginForm.reset();
+    loginMessage.textContent = "";
+    showRecords();
+    return;
+  }
+
+  loginMessage.textContent = "帳號或密碼錯誤。";
+});
+
+logoutButton.addEventListener("click", () => {
+  sessionStorage.removeItem(AUTH_KEY);
+  showLogin();
+});
+
 refreshOrders.addEventListener("click", loadOrders);
-loadOrders();
+
+if (isAuthenticated()) {
+  showRecords();
+} else {
+  showLogin();
+}

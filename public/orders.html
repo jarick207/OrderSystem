@@ -16,14 +16,36 @@
     </header>
 
     <main class="records-page">
-      <div class="section-heading">
+      <section id="loginPanel" class="login-panel" aria-labelledby="login-title">
+        <p class="eyebrow">Login</p>
+        <h2 id="login-title">查看訂單</h2>
+        <form id="loginForm" class="order-form">
+          <label>
+            帳號
+            <input name="username" autocomplete="username" required>
+          </label>
+          <label>
+            密碼
+            <input name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button class="submit-button" type="submit">登入</button>
+          <p id="loginMessage" class="form-message" role="status"></p>
+        </form>
+      </section>
+
+      <section id="recordsPanel" class="records-panel" hidden>
+        <div class="section-heading">
         <div>
           <p class="eyebrow">Submitted Orders</p>
           <h2>使用者送出的資料</h2>
         </div>
-        <button id="refreshOrders" class="secondary-button" type="button">重新整理</button>
-      </div>
-      <div id="ordersList" class="orders-list"></div>
+          <div class="record-actions">
+            <button id="refreshOrders" class="secondary-button" type="button">重新整理</button>
+            <button id="logoutButton" class="secondary-button" type="button">登出</button>
+          </div>
+        </div>
+        <div id="ordersList" class="orders-list"></div>
+      </section>
     </main>
 
     <script src="config.js"></script>

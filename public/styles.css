@@ -105,12 +105,32 @@ h3 {
   padding: 32px clamp(18px, 5vw, 56px) 56px;
 }
 
+.login-panel {
+  max-width: 420px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(32, 33, 36, 0.06);
+  padding: 24px;
+}
+
+.login-panel h2 {
+  margin-bottom: 18px;
+}
+
 .section-heading {
   display: flex;
   justify-content: space-between;
   gap: 20px;
   align-items: end;
   margin-bottom: 20px;
+}
+
+.record-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .hint {
