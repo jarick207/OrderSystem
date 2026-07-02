@@ -20,10 +20,11 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Menu</p>
-            <h2 id="menu-title">今日菜單</h2>
+            <h2 id="menu-title">點餐菜單</h2>
           </div>
-          <p class="hint">選好餐點後填寫取餐資料即可送出。</p>
+          <p class="hint">選擇日期分頁與餐點後，填寫訂購人即可送出。</p>
         </div>
+        <div id="dayTabs" class="day-tabs" role="tablist" aria-label="選擇菜單日期"></div>
         <div id="menuList" class="menu-grid"></div>
       </section>
 
@@ -38,15 +39,19 @@
         <form id="orderForm" class="order-form">
           <label>
             姓名
-            <input name="customerName" autocomplete="name" required>
-          </label>
-          <label>
-            電話
-            <input name="phone" autocomplete="tel" required>
-          </label>
-          <label>
-            取餐時間
-            <input name="pickupTime" type="time" required>
+            <select name="customerName" required>
+              <option value="">請選擇訂購人</option>
+              <option>大舅舅</option>
+              <option>小舅舅</option>
+              <option>小阿姨</option>
+              <option>258</option>
+              <option>翁蝦</option>
+              <option>竹南</option>
+              <option>新豐</option>
+              <option>台灣大道</option>
+              <option>呱</option>
+              <option>英傑叔叔</option>
+            </select>
           </label>
           <label>
             備註

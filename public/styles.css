@@ -28,6 +28,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -115,6 +116,30 @@ h3 {
 .hint {
   color: var(--muted);
   line-height: 1.6;
+}
+
+.day-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.day-tabs button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--leaf-dark);
+  min-height: 42px;
+  padding: 0 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.day-tabs button.active {
+  background: var(--leaf);
+  color: #fff;
+  border-color: var(--leaf);
 }
 
 .menu-grid {
@@ -233,6 +258,7 @@ label {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   border: 1px solid var(--line);

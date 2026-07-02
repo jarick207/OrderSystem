@@ -33,11 +33,11 @@ function renderOrders(orders) {
         <div class="order-card-header">
           <div>
             <p class="category">${formatDate(order.createdAt)}</p>
-            <h3>${order.customerName} / ${order.phone}</h3>
+            <h3>${order.customerName}</h3>
           </div>
           <strong>${money(order.total)}</strong>
         </div>
-        <p>取餐時間：${order.pickupTime}</p>
+        <p>菜單日期：${order.dayName || order.dayId || "未指定"}</p>
         <div class="order-items">
           ${order.items.map((item) => `<span>${item.name} x ${item.quantity}</span>`).join("")}
         </div>

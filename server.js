@@ -8,15 +8,30 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const DATA_DIR = path.join(__dirname, "data");
 const ORDERS_FILE = path.join(DATA_DIR, "orders.json");
 
-const MENU = [
-  { id: "chicken-rice", name: "香煎雞腿飯", category: "主餐", price: 140, description: "雞腿排、溫蔬菜、白飯" },
-  { id: "pork-noodle", name: "蔥燒豬肉拌麵", category: "主餐", price: 120, description: "豬五花、青蔥、手工麵" },
-  { id: "veggie-bowl", name: "季節蔬食碗", category: "主餐", price: 115, description: "豆腐、時蔬、穀物飯" },
-  { id: "fried-tofu", name: "酥炸豆腐", category: "小點", price: 65, description: "外酥內嫩，附椒鹽" },
-  { id: "sweet-potato", name: "梅粉地瓜條", category: "小點", price: 55, description: "宜蘭風味甜鹹小點" },
-  { id: "black-tea", name: "古早味紅茶", category: "飲品", price: 35, description: "固定微糖去冰" },
-  { id: "lemon-tea", name: "檸檬青茶", category: "飲品", price: 45, description: "清爽茶香與檸檬酸甜" }
+const MENU_BY_DAY = [
+  {
+    id: "day1",
+    name: "第一天",
+    menu: [
+      { id: "day1-chicken-rice", name: "香煎雞腿飯", category: "主餐", price: 140, description: "雞腿排、溫蔬菜、白飯" },
+      { id: "day1-pork-noodle", name: "蔥燒豬肉拌麵", category: "主餐", price: 120, description: "豬五花、青蔥、手工麵" },
+      { id: "day1-fried-tofu", name: "酥炸豆腐", category: "小點", price: 65, description: "外酥內嫩，附椒鹽" },
+      { id: "day1-black-tea", name: "古早味紅茶", category: "飲品", price: 35, description: "固定微糖去冰" }
+    ]
+  },
+  {
+    id: "day2",
+    name: "第二天",
+    menu: [
+      { id: "day2-veggie-bowl", name: "季節蔬食碗", category: "主餐", price: 115, description: "豆腐、時蔬、穀物飯" },
+      { id: "day2-beef-curry", name: "咖哩牛肉飯", category: "主餐", price: 150, description: "牛肉咖哩、白飯、季節蔬菜" },
+      { id: "day2-sweet-potato", name: "梅粉地瓜條", category: "小點", price: 55, description: "宜蘭風味甜鹹小點" },
+      { id: "day2-lemon-tea", name: "檸檬青茶", category: "飲品", price: 45, description: "清爽茶香與檸檬酸甜" }
+    ]
+  }
 ];
+
+const CUSTOMER_NAMES = ["大舅舅", "小舅舅", "小阿姨", "258", "翁蝦", "竹南", "新豐", "台灣大道", "呱", "英傑叔叔"];
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -61,19 +76,23 @@ function normalizeText(value) {
 }
 
 function validateAndBuildOrder(payload) {
+  const dayId = normalizeText(payload.dayId);
+  const day = MENU_BY_DAY.find((entry) => entry.id === dayId);
   const customerName = normalizeText(payload.customerName);
-  const phone = normalizeText(payload.phone);
-  const pickupTime = normalizeText(payload.pickupTime);
   const note = normalizeText(payload.note);
   const items = Array.isArray(payload.items) ? payload.items : [];
 
-  if (!customerName || !phone || !pickupTime) {
-    return { error: "請填寫姓名、電話與取餐時間。" };
+  if (!day) {
+    return { error: "請選擇菜單日期。" };
+  }
+
+  if (!CUSTOMER_NAMES.includes(customerName)) {
+    return { error: "請選擇訂購人。" };
   }
 
   const orderItems = items
     .map((item) => {
-      const menuItem = MENU.find((entry) => entry.id === item.id);
+      const menuItem = day.menu.find((entry) => entry.id === item.id);
       const quantity = Number.parseInt(item.quantity, 10);
       if (!menuItem || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
         return null;
@@ -100,9 +119,9 @@ function validateAndBuildOrder(payload) {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       status: "new",
+      dayId: day.id,
+      dayName: day.name,
       customerName,
-      phone,
-      pickupTime,
       note,
       items: orderItems,
       total
@@ -156,7 +175,7 @@ async function serveStatic(req, res) {
 
 async function handleRequest(req, res) {
   if (req.url === "/api/menu" && req.method === "GET") {
-    sendJson(res, 200, { menu: MENU });
+    sendJson(res, 200, { days: MENU_BY_DAY, menu: MENU_BY_DAY[0].menu });
     return;
   }
 

@@ -1,8 +1,10 @@
 const state = {
-  menu: [],
-  cart: new Map()
+  days: [],
+  activeDayId: "",
+  carts: new Map()
 };
 
+const dayTabs = document.querySelector("#dayTabs");
 const menuList = document.querySelector("#menuList");
 const cartItems = document.querySelector("#cartItems");
 const cartTotal = document.querySelector("#cartTotal");
@@ -40,14 +42,50 @@ function money(value) {
   return `$${Number(value).toLocaleString("zh-TW")}`;
 }
 
+function activeDay() {
+  return state.days.find((day) => day.id === state.activeDayId) || state.days[0];
+}
+
+function activeCart() {
+  if (!state.carts.has(state.activeDayId)) {
+    state.carts.set(state.activeDayId, new Map());
+  }
+
+  return state.carts.get(state.activeDayId);
+}
+
 function cartPayload() {
-  return Array.from(state.cart.entries()).map(([id, quantity]) => ({ id, quantity }));
+  return Array.from(activeCart().entries()).map(([id, quantity]) => ({ id, quantity }));
+}
+
+function renderDayTabs() {
+  dayTabs.innerHTML = state.days
+    .map((day) => `
+      <button
+        type="button"
+        class="${day.id === state.activeDayId ? "active" : ""}"
+        data-day-id="${day.id}"
+        role="tab"
+        aria-selected="${day.id === state.activeDayId}"
+      >
+        ${day.name}
+      </button>
+    `)
+    .join("");
 }
 
 function renderMenu() {
-  menuList.innerHTML = state.menu
+  const day = activeDay();
+  const cart = activeCart();
+
+  if (!day) {
+    menuList.innerHTML = '<p class="empty-state">目前沒有菜單。</p>';
+    return;
+  }
+
+  menuList.innerHTML = day.menu
     .map((item) => {
-      const quantity = state.cart.get(item.id) || 0;
+      const quantity = cart.get(item.id) || 0;
       return `
         <article class="menu-card">
           <div>
@@ -70,13 +108,17 @@ function renderMenu() {
 }
 
 function renderCart() {
-  const selectedItems = state.menu
-    .filter((item) => state.cart.has(item.id))
-    .map((item) => ({ ...item, quantity: state.cart.get(item.id) }));
+  const day = activeDay();
+  const cart = activeCart();
+  const selectedItems = day
+    ? day.menu
+      .filter((item) => cart.has(item.id))
+      .map((item) => ({ ...item, quantity: cart.get(item.id) }))
+    : [];
 
   if (selectedItems.length === 0) {
     cartItems.className = "cart-items empty";
-    cartItems.textContent = "尚未選擇餐點";
+    cartItems.textContent = day ? `${day.name}尚未選擇餐點` : "尚未選擇餐點";
     cartTotal.textContent = money(0);
     return;
   }
@@ -96,16 +138,26 @@ function renderCart() {
 }
 
 function updateQuantity(id, delta) {
-  const current = state.cart.get(id) || 0;
+  const cart = activeCart();
+  const current = cart.get(id) || 0;
   const next = Math.max(0, Math.min(99, current + delta));
   if (next === 0) {
-    state.cart.delete(id);
+    cart.delete(id);
   } else {
-    state.cart.set(id, next);
+    cart.set(id, next);
   }
   renderMenu();
   renderCart();
 }
+
+dayTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-day-id]");
+  if (!button) return;
+  state.activeDayId = button.dataset.dayId;
+  renderDayTabs();
+  renderMenu();
+  renderCart();
+});
 
 menuList.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
@@ -117,17 +169,24 @@ menuList.addEventListener("click", (event) => {
 orderForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   formMessage.textContent = "";
+  const day = activeDay();
+  const cart = activeCart();
 
-  if (state.cart.size === 0) {
+  if (!day) {
+    formMessage.textContent = "目前沒有可訂購的菜單。";
+    return;
+  }
+
+  if (cart.size === 0) {
     formMessage.textContent = "請先選擇餐點。";
     return;
   }
 
   const formData = new FormData(orderForm);
   const payload = {
+    dayId: day.id,
+    dayName: day.name,
     customerName: formData.get("customerName"),
-    phone: formData.get("phone"),
-    pickupTime: formData.get("pickupTime"),
     note: formData.get("note"),
     items: cartPayload()
   };
@@ -141,8 +200,9 @@ orderForm.addEventListener("submit", async (event) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "送出失敗");
 
-    state.cart.clear();
+    cart.clear();
     orderForm.reset();
+    renderDayTabs();
     renderMenu();
     renderCart();
     formMessage.textContent = `訂單已送出，編號 ${result.order.id.slice(0, 8)}，合計 ${money(result.order.total)}。`;
@@ -159,10 +219,14 @@ async function loadMenu() {
     const response = await fetch(apiUrl("/api/menu"));
     const data = await response.json();
     if (!response.ok || !Array.isArray(data.menu)) {
-      throw new Error(data.error || "菜單讀取失敗");
+      if (!Array.isArray(data.days)) {
+        throw new Error(data.error || "菜單讀取失敗");
+      }
     }
 
-    state.menu = data.menu;
+    state.days = Array.isArray(data.days) ? data.days : [{ id: "day1", name: "第一天", menu: data.menu }];
+    state.activeDayId = state.days[0]?.id || "";
+    renderDayTabs();
     renderMenu();
     renderCart();
   } catch (error) {
