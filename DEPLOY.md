@@ -1,6 +1,6 @@
-# GitHub Pages + Google Sheet 發布步驟
+# Cloudflare Pages + Google Sheet 發布步驟
 
-這個專案可以用 GitHub Pages 發布前台，並用 Google Apps Script 把訂單寫進 Google Sheet。
+這個專案建議用 Cloudflare Pages 發布前台，並用 Google Apps Script 把訂單寫進 Google Sheet。
 
 ## 1. 建立 Google Sheet API
 
@@ -21,16 +21,26 @@
 window.ORDER_API_BASE_URL = "https://script.google.com/macros/s/你的部署ID/exec";
 ```
 
-## 3. 發布到 GitHub Pages
+## 3. 發布到 Cloudflare Pages
 
 1. 建立 GitHub repository。
 2. 上傳整個專案。
-3. 到 repository 的 Settings > Pages。
-4. Source 選 `Deploy from a branch`。
-5. Branch 選 `main`，資料夾選 `/docs`。
-6. 儲存後等待 GitHub 產生網址。
+3. 到 Cloudflare > Workers & Pages > Create。
+4. 選 Pages，並連接 GitHub repository。
+5. 選 `OrderSystem` repository。
+6. 設定如下：
 
-發布完成後，GitHub Pages 網址就是給客人填寫的連結。
+```text
+Production branch: main
+Framework preset: None
+Build command: 留空
+Build output directory: public
+Root directory: 留空
+```
+
+7. 按 Save and Deploy。
+
+發布完成後，Cloudflare Pages 網址就是給客人填寫的連結。
 
 ## 注意
 
@@ -38,3 +48,4 @@ window.ORDER_API_BASE_URL = "https://script.google.com/macros/s/你的部署ID/e
 - 訂單會存在 Google Sheet 的 `Orders` 工作表。
 - `orders.html` 是簡易查看頁，不建議當成正式後台權限控管。
 - 若要保護訂單資料，請直接用 Google Sheet 管理權限，或在 Apps Script 加上後台驗證。
+- Cloudflare Pages 發布來源請設定為 `public/`。
