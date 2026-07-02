@@ -2,7 +2,7 @@
 
 這個專案可以用 GitHub Pages 發布前台，並用 Google Apps Script 把訂單寫進 Google Sheet。
 
-## 1. 建立 Google Sheet API 
+## 1. 建立 Google Sheet API
 
 1. 建立一份新的 Google 試算表。
 2. 進入「擴充功能」>「Apps Script」。
