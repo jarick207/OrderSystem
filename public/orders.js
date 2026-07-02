@@ -3,6 +3,10 @@ const refreshOrders = document.querySelector("#refreshOrders");
 const API_BASE_URL = (window.ORDER_API_BASE_URL || "").replace(/\/$/, "");
 
 function apiUrl(path) {
+  if (API_BASE_URL) {
+    return `${API_BASE_URL}?path=${encodeURIComponent(path)}`;
+  }
+
   return `${API_BASE_URL}${path}`;
 }
 

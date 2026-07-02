@@ -11,6 +11,10 @@ const formMessage = document.querySelector("#formMessage");
 const API_BASE_URL = (window.ORDER_API_BASE_URL || "").replace(/\/$/, "");
 
 function apiUrl(path) {
+  if (API_BASE_URL) {
+    return `${API_BASE_URL}?path=${encodeURIComponent(path)}`;
+  }
+
   return `${API_BASE_URL}${path}`;
 }
 
@@ -151,11 +155,19 @@ orderForm.addEventListener("submit", async (event) => {
 });
 
 async function loadMenu() {
-  const response = await fetch(apiUrl("/api/menu"));
-  const data = await response.json();
-  state.menu = data.menu;
-  renderMenu();
-  renderCart();
+  try {
+    const response = await fetch(apiUrl("/api/menu"));
+    const data = await response.json();
+    if (!response.ok || !Array.isArray(data.menu)) {
+      throw new Error(data.error || "菜單讀取失敗");
+    }
+
+    state.menu = data.menu;
+    renderMenu();
+    renderCart();
+  } catch (error) {
+    menuList.innerHTML = `<p class="empty-state">菜單載入失敗：${error.message}</p>`;
+  }
 }
 
 loadMenu();
