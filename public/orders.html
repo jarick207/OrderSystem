@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>訂單紀錄 | 宜蘭小食點餐系統</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Records</p>
+        <h1>訂單紀錄</h1>
+      </div>
+      <a class="admin-link" href="index.html">回到點餐</a>
+    </header>
+
+    <main class="records-page">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Submitted Orders</p>
+          <h2>使用者送出的資料</h2>
+        </div>
+        <button id="refreshOrders" class="secondary-button" type="button">重新整理</button>
+      </div>
+      <div id="ordersList" class="orders-list"></div>
+    </main>
+
+    <script src="config.js"></script>
+    <script src="orders.js"></script>
+  </body>
+</html>
