@@ -131,7 +131,7 @@ const MENU_BY_DAY = [
 ];
 
 const CUSTOMER_NAMES = ["大舅舅", "小舅舅", "小阿姨", "258", "翁蝦", "竹南", "新豐", "台灣大道", "呱", "英傑叔叔"];
-const ADD_EGG_CATEGORIES = ["漢堡","抓餅", "鐵板麵"];
+const ADD_EGG_CATEGORIES = ["漢堡", "吐司", "抓餅", "鐵板麵"];
 const ADD_EGG_PRICE = 15;
 
 const MIME_TYPES = {
