@@ -8,8 +8,8 @@ const loginMessage = document.querySelector("#loginMessage");
 const statsList = document.querySelector("#statsList");
 const API_BASE_URL = (window.ORDER_API_BASE_URL || "").replace(/\/$/, "");
 const AUTH_KEY = "orderSystemOrdersAuth";
-const ADMIN_USERNAME = "123";
-const ADMIN_PASSWORD = "123";
+const ADMIN_USERNAME = "admin";
+const ADMIN_PASSWORD = "admin0236";
 
 function apiUrl(path) {
   if (API_BASE_URL) {
