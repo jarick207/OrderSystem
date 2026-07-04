@@ -40,7 +40,7 @@ function normalizeItems(items) {
 }
 
 function itemLabel(item) {
-  return `${item.name}${item.temperature ? `（${item.temperature}）` : ""}`;
+  return `${item.name}${item.addEgg ? "（加蛋）" : ""}${item.temperature ? `（${item.temperature}）` : ""}`;
 }
 
 function buildStats(orders) {
@@ -49,7 +49,7 @@ function buildStats(orders) {
   orders.forEach((order) => {
     normalizeItems(order.items).forEach((item) => {
       const dayName = item.dayName || order.dayName || "未指定";
-      const key = `${item.id || item.name}::${item.temperature || ""}`;
+      const key = `${item.id || item.name}::${item.temperature || ""}::${item.addEgg ? "egg" : ""}`;
       if (!statsByDay.has(dayName)) {
         statsByDay.set(dayName, new Map());
       }
@@ -113,7 +113,7 @@ function renderOrders(orders) {
         </div>
         <p>菜單日期：${order.dayName || order.dayId || "未指定"}</p>
         <div class="order-items">
-          ${normalizeItems(order.items).map((item) => `<span>${item.dayName ? `${item.dayName}｜` : ""}${item.name}${item.temperature ? `（${item.temperature}）` : ""} x ${item.quantity}</span>`).join("") || "<span>餐點資料未記錄</span>"}
+          ${normalizeItems(order.items).map((item) => `<span>${item.dayName ? `${item.dayName}｜` : ""}${item.name}${item.addEgg ? "（加蛋）" : ""}${item.temperature ? `（${item.temperature}）` : ""} x ${item.quantity}</span>`).join("") || "<span>餐點資料未記錄</span>"}
         </div>
         ${order.note ? `<p class="note">備註：${order.note}</p>` : ""}
         <small>訂單編號：${order.id}</small>

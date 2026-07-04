@@ -3,7 +3,8 @@ const state = {
   activeDayId: "",
   activeCategoryByDay: new Map(),
   carts: new Map(),
-  drinkTemperatures: new Map()
+  optionGroups: new Map(),
+  activeOptionGroup: null
 };
 
 const dayTabs = document.querySelector("#dayTabs");
@@ -14,6 +15,10 @@ const cartTotal = document.querySelector("#cartTotal");
 const orderForm = document.querySelector("#orderForm");
 const formMessage = document.querySelector("#formMessage");
 const API_BASE_URL = (window.ORDER_API_BASE_URL || "").replace(/\/$/, "");
+const SIZE_LABELS = ["大", "中", "小"];
+const OPTION_CATEGORIES = ["飲品", "飲料", "夏日限定", "冬季限定"];
+const ADD_EGG_CATEGORIES = ["漢堡", "抓餅", "鐵板麵"];
+const ADD_EGG_PRICE = 15;
 
 function apiUrl(path) {
   if (API_BASE_URL) {
@@ -46,20 +51,49 @@ function money(value) {
 }
 
 function isDrink(item) {
-  return ["飲品", "飲料"].includes(item.category);
+  return OPTION_CATEGORIES.includes(item.category);
 }
 
-function selectedTemperature(itemId) {
-  return state.drinkTemperatures.get(itemId) || "冰";
+function isAddEggOnlyItem(item) {
+  return item.id.endsWith("-add-egg") || item.name.endsWith("加蛋");
 }
 
-function cartKey(item) {
-  return isDrink(item) ? `${item.id}::${selectedTemperature(item.id)}` : item.id;
+// public/app.js
+function canAddEgg(item) {
+  return item.id.startsWith("day2-")
+    && ADD_EGG_CATEGORIES.includes(item.category)
+    && !isAddEggOnlyItem(item);
+}
+
+function hasOptions(item) {
+  return isDrink(item) || canAddEgg(item);
+}
+
+function stripSizeSuffix(name) {
+  return String(name || "").replace(/\s+(大|中|小)$/, "");
+}
+
+function sizeFromName(name) {
+  const match = String(name || "").match(/\s+(大|中|小)$/);
+  return match ? match[1] : "";
+}
+
+function optionGroupKey(day, item) {
+  return `${day.id}::${item.category}::${stripSizeSuffix(item.name)}`;
+}
+
+function cartKey(item, temperature = "", addEgg = false) {
+  if (isDrink(item)) return `${item.id}::${temperature || "冰"}`;
+  return addEgg ? `${item.id}::egg` : item.id;
 }
 
 function parseCartKey(key) {
-  const [id, temperature] = key.split("::");
-  return { id, temperature: temperature || "" };
+  const [id, option] = key.split("::");
+  return {
+    id,
+    temperature: option && option !== "egg" ? option : "",
+    addEgg: option === "egg"
+  };
 }
 
 function activeDay() {
@@ -80,8 +114,39 @@ function activeCategory(day) {
 
 function visibleMenuItems(day) {
   const category = activeCategory(day);
-  if (!category) return day.menu;
-  return day.menu.filter((item) => item.category === category);
+  const menu = category ? day.menu.filter((item) => item.category === category) : day.menu;
+  return menu.filter((item) => !isAddEggOnlyItem(item));
+}
+
+function visibleMenuEntries(day) {
+  const groups = new Map();
+
+  return visibleMenuItems(day).reduce((entries, item) => {
+    if (!hasOptions(item)) {
+      entries.push({ type: "item", item });
+      return entries;
+    }
+
+    const key = isDrink(item) ? optionGroupKey(day, item) : `${day.id}::${item.category}::${item.id}`;
+    if (!groups.has(key)) {
+      const group = {
+        type: "optionGroup",
+        key,
+        dayId: day.id,
+        category: item.category,
+        name: isDrink(item) ? stripSizeSuffix(item.name) : item.name,
+        hasSizeChoices: isDrink(item),
+        hasTemperatureChoices: isDrink(item),
+        hasAddEggChoices: canAddEgg(item),
+        items: []
+      };
+      groups.set(key, group);
+      entries.push(group);
+    }
+
+    groups.get(key).items.push(item);
+    return entries;
+  }, []);
 }
 
 function allSelectedItems() {
@@ -99,6 +164,8 @@ function allSelectedItems() {
         dayId: day.id,
         dayName: day.name,
         temperature: parsed.temperature,
+        addEgg: parsed.addEgg,
+        price: item.price + (parsed.addEgg ? ADD_EGG_PRICE : 0),
         quantity
       };
     }).filter(Boolean);
@@ -110,8 +177,40 @@ function cartPayload() {
     id: item.id,
     dayId: item.dayId,
     temperature: item.temperature,
+    addEgg: item.addEgg,
     quantity: item.quantity
   }));
+}
+
+function optionGroupsByKey() {
+  state.optionGroups.clear();
+  state.days.forEach((day) => {
+    day.menu.forEach((item) => {
+      if (!hasOptions(item)) return;
+      const key = isDrink(item) ? optionGroupKey(day, item) : `${day.id}::${item.category}::${item.id}`;
+      if (!state.optionGroups.has(key)) {
+        state.optionGroups.set(key, {
+          key,
+          dayId: day.id,
+          category: item.category,
+          name: isDrink(item) ? stripSizeSuffix(item.name) : item.name,
+          hasSizeChoices: isDrink(item),
+          hasTemperatureChoices: isDrink(item),
+          hasAddEggChoices: canAddEgg(item),
+          items: []
+        });
+      }
+      state.optionGroups.get(key).items.push(item);
+    });
+  });
+
+  state.optionGroups.forEach((group) => {
+    group.items.sort((a, b) => {
+      const sizeA = SIZE_LABELS.indexOf(sizeFromName(a.name));
+      const sizeB = SIZE_LABELS.indexOf(sizeFromName(b.name));
+      return (sizeA === -1 ? 99 : sizeA) - (sizeB === -1 ? 99 : sizeB);
+    });
+  });
 }
 
 function renderDayTabs() {
@@ -166,8 +265,36 @@ function renderMenu() {
     return;
   }
 
-  menuList.innerHTML = visibleMenuItems(day)
-    .map((item) => {
+  menuList.innerHTML = visibleMenuEntries(day)
+    .map((entry) => {
+      if (entry.type === "optionGroup") {
+        const prices = entry.items.map((item) => item.price);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const selectedCount = entry.items.reduce((sum, item) => {
+          if (entry.hasTemperatureChoices) {
+            return sum + ["冰", "熱"].reduce((total, temperature) => total + (cart.get(cartKey(item, temperature)) || 0), 0);
+          }
+          return sum + (cart.get(cartKey(item, "", false)) || 0) + (cart.get(cartKey(item, "", true)) || 0);
+        }, 0);
+        return `
+          <article class="menu-card">
+            <div>
+              <p class="category">${entry.category}</p>
+              <h3>${entry.name}</h3>
+              <p>${entry.hasAddEggChoices ? "可選是否加蛋與數量" : entry.items.length > 1 ? "可選尺寸、冰熱與數量" : "可選冰熱與數量"}</p>
+            </div>
+            <div class="menu-actions">
+              <strong>${entry.hasAddEggChoices ? `${money(minPrice)} / 加蛋 ${money(minPrice + ADD_EGG_PRICE)}` : minPrice === maxPrice ? money(minPrice) : `${money(minPrice)} 起`}</strong>
+              <button class="option-button" type="button" data-action="open-options" data-option-key="${entry.key}">
+                選擇${selectedCount ? `（${selectedCount}）` : ""}
+              </button>
+            </div>
+          </article>
+        `;
+      }
+
+      const item = entry.item;
       const quantity = cart.get(cartKey(item)) || 0;
       return `
         <article class="menu-card">
@@ -178,15 +305,6 @@ function renderMenu() {
           </div>
           <div class="menu-actions">
             <strong>${money(item.price)}</strong>
-            ${isDrink(item) ? `
-              <label class="temperature-field">
-                冰熱
-                <select data-temperature-for="${item.id}">
-                  <option value="冰" ${selectedTemperature(item.id) === "冰" ? "selected" : ""}>冰</option>
-                  <option value="熱" ${selectedTemperature(item.id) === "熱" ? "selected" : ""}>熱</option>
-                </select>
-              </label>
-            ` : ""}
             <div class="stepper" aria-label="${item.name} 數量">
               <button type="button" data-action="decrease" data-id="${item.id}">-</button>
               <span>${quantity}</span>
@@ -197,6 +315,89 @@ function renderMenu() {
       `;
     })
     .join("");
+}
+
+function renderOptionModal(group) {
+  const existing = document.querySelector("#optionModal");
+  if (existing) existing.remove();
+
+  state.activeOptionGroup = group;
+  const defaultItem = group.items[0];
+  const hasSizeChoices = group.hasSizeChoices && group.items.some((item) => sizeFromName(item.name));
+
+  const modal = document.createElement("div");
+  modal.id = "optionModal";
+  modal.className = "modal-backdrop";
+  modal.innerHTML = `
+    <section class="option-modal" role="dialog" aria-modal="true" aria-labelledby="optionModalTitle">
+      <div class="option-modal-header">
+        <div>
+          <p class="eyebrow">${group.category}</p>
+          <h2 id="optionModalTitle">${group.name}</h2>
+        </div>
+        <button class="icon-button" type="button" data-modal-close aria-label="關閉">×</button>
+      </div>
+      <form id="optionForm" class="option-form">
+        ${hasSizeChoices ? `
+          <label>
+            尺寸
+            <select name="itemId">
+              ${group.items.map((item) => {
+                const size = sizeFromName(item.name) || item.name;
+                return `<option value="${item.id}">${size} - ${money(item.price)}</option>`;
+              }).join("")}
+            </select>
+          </label>
+        ` : `<input type="hidden" name="itemId" value="${defaultItem.id}">`}
+        ${group.hasTemperatureChoices ? `
+          <fieldset class="choice-field">
+            <legend>冰熱</legend>
+            <div class="choice-row">
+              <label>
+                <input type="radio" name="temperature" value="冰" checked>
+                <span>冰</span>
+              </label>
+              <label>
+                <input type="radio" name="temperature" value="熱">
+                <span>熱</span>
+              </label>
+            </div>
+          </fieldset>
+        ` : ""}
+        ${group.hasAddEggChoices ? `
+          <fieldset class="choice-field">
+            <legend>加蛋</legend>
+            <div class="choice-row">
+              <label>
+                <input type="radio" name="addEgg" value="no" checked>
+                <span>不加蛋</span>
+              </label>
+              <label>
+                <input type="radio" name="addEgg" value="yes">
+                <span>加蛋 +${money(ADD_EGG_PRICE)}</span>
+              </label>
+            </div>
+          </fieldset>
+        ` : ""}
+        <label>
+          數量
+          <input name="quantity" type="number" min="1" max="99" value="1" inputmode="numeric">
+        </label>
+        <div class="modal-actions">
+          <button class="secondary-button" type="button" data-modal-close>取消</button>
+          <button class="submit-button" type="submit">加入餐點</button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  document.body.appendChild(modal);
+  modal.querySelector("select, input, button")?.focus();
+}
+
+function closeOptionModal() {
+  document.querySelector("#optionModal")?.remove();
+  state.activeOptionGroup = null;
 }
 
 function renderCart() {
@@ -221,8 +422,18 @@ function renderCart() {
           <ol>
             ${dayItems.map((item) => `
               <li>
-                <span>${item.name}${item.temperature ? `（${item.temperature}）` : ""} x ${item.quantity}</span>
+                <span>${item.name}${item.addEgg ? "（加蛋）" : ""}${item.temperature ? `（${item.temperature}）` : ""} x ${item.quantity}</span>
                 <strong>${money(item.price * item.quantity)}</strong>
+                <button
+                  class="cart-remove"
+                  type="button"
+                  data-cart-remove
+                  data-day-id="${item.dayId}"
+                  data-cart-key="${cartKey(item, item.temperature, item.addEgg)}"
+                  aria-label="刪除 ${item.name}"
+                >
+                  刪除
+                </button>
               </li>
             `).join("")}
           </ol>
@@ -233,6 +444,14 @@ function renderCart() {
 
   const total = selectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   cartTotal.textContent = money(total);
+}
+
+function removeCartItem(dayId, key) {
+  const cart = state.carts.get(dayId);
+  if (!cart) return;
+  cart.delete(key);
+  renderMenu();
+  renderCart();
 }
 
 function updateQuantity(id, delta) {
@@ -273,18 +492,53 @@ categoryTabs.addEventListener("click", (event) => {
   renderMenu();
 });
 
+cartItems.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-cart-remove]");
+  if (!button) return;
+  removeCartItem(button.dataset.dayId, button.dataset.cartKey);
+});
+
 menuList.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
+  if (button.dataset.action === "open-options") {
+    const group = state.optionGroups.get(button.dataset.optionKey);
+    if (group) renderOptionModal(group);
+    return;
+  }
   const delta = button.dataset.action === "increase" ? 1 : -1;
   updateQuantity(button.dataset.id, delta);
 });
 
-menuList.addEventListener("change", (event) => {
-  const select = event.target.closest("select[data-temperature-for]");
-  if (!select) return;
-  state.drinkTemperatures.set(select.dataset.temperatureFor, select.value);
+document.addEventListener("click", (event) => {
+  if (event.target.matches("[data-modal-close]") || event.target.id === "optionModal") {
+    closeOptionModal();
+  }
+});
+
+document.addEventListener("submit", (event) => {
+  if (event.target.id !== "optionForm") return;
+  event.preventDefault();
+  const group = state.activeOptionGroup;
+  if (!group) return;
+
+  const formData = new FormData(event.target);
+  const item = group.items.find((menuItem) => menuItem.id === formData.get("itemId"));
+  const quantity = Math.max(1, Math.min(99, Number(formData.get("quantity")) || 1));
+  const temperature = formData.get("temperature") || "冰";
+  const addEgg = formData.get("addEgg") === "yes";
+  const day = state.days.find((menuDay) => menuDay.id === group.dayId);
+  if (!item || !day) return;
+
+  if (!state.carts.has(day.id)) {
+    state.carts.set(day.id, new Map());
+  }
+  const cart = state.carts.get(day.id);
+  const key = cartKey(item, temperature, addEgg);
+  cart.set(key, Math.min(99, (cart.get(key) || 0) + quantity));
+  closeOptionModal();
   renderMenu();
+  renderCart();
 });
 
 orderForm.addEventListener("submit", async (event) => {
@@ -346,6 +600,7 @@ async function loadMenu() {
     }
 
     state.days = Array.isArray(data.days) ? data.days : [{ id: "day1", name: "第一天", menu: data.menu }];
+    optionGroupsByKey();
     state.activeDayId = state.days[0]?.id || "";
     state.days.forEach((day) => {
       if (day.categoryTabs?.length) {
