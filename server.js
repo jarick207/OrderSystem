@@ -1,7 +1,6 @@
 const http = require("http");
 const fs = require("fs/promises");
 const path = require("path");
-const crypto = require("crypto");
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -22,11 +21,14 @@ const MENU_BY_DAY = [
   {
     id: "day2",
     name: "第二天",
+    categoryTabs: ["漢堡", "吐司", "飲料"],
     menu: [
-      { id: "day2-veggie-bowl", name: "季節蔬食碗", category: "主餐", price: 115, description: "豆腐、時蔬、穀物飯" },
-      { id: "day2-beef-curry", name: "咖哩牛肉飯", category: "主餐", price: 150, description: "牛肉咖哩、白飯、季節蔬菜" },
-      { id: "day2-sweet-potato", name: "梅粉地瓜條", category: "小點", price: 55, description: "宜蘭風味甜鹹小點" },
-      { id: "day2-lemon-tea", name: "檸檬青茶", category: "飲品", price: 45, description: "清爽茶香與檸檬酸甜" }
+      { id: "day2-pork-burger", name: "豬肉漢堡", category: "漢堡", price: 65, description: "漢堡、豬肉排、蛋、蔬菜" },
+      { id: "day2-chicken-burger", name: "雞腿漢堡", category: "漢堡", price: 75, description: "漢堡、雞腿排、蛋、蔬菜" },
+      { id: "day2-ham-toast", name: "火腿吐司", category: "吐司", price: 45, description: "吐司、火腿、蛋、起司" },
+      { id: "day2-tuna-toast", name: "鮪魚吐司", category: "吐司", price: 50, description: "吐司、鮪魚、蛋、蔬菜" },
+      { id: "day2-black-tea", name: "紅茶", category: "飲料", price: 25, description: "可選冰或熱" },
+      { id: "day2-milk-tea", name: "奶茶", category: "飲料", price: 30, description: "可選冰或熱" }
     ]
   }
 ];
@@ -75,6 +77,16 @@ function normalizeText(value) {
   return String(value || "").trim();
 }
 
+function orderNumberFromId(id) {
+  const match = String(id || "").match(/^ORD-(\d+)$/);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
+
+function nextOrderId(orders) {
+  const maxOrderNumber = orders.reduce((max, order) => Math.max(max, orderNumberFromId(order.id)), 0);
+  return `ORD-${String(maxOrderNumber + 1).padStart(4, "0")}`;
+}
+
 function validateAndBuildOrder(payload) {
   const customerName = normalizeText(payload.customerName);
   const note = normalizeText(payload.note);
@@ -94,7 +106,7 @@ function validateAndBuildOrder(payload) {
         return null;
       }
 
-      if (menuItem.category === "飲品" && !["冰", "熱"].includes(temperature)) {
+      if (["飲品", "飲料"].includes(menuItem.category) && !["冰", "熱"].includes(temperature)) {
         return null;
       }
 
@@ -103,7 +115,7 @@ function validateAndBuildOrder(payload) {
         name: menuItem.name,
         dayId: day.id,
         dayName: day.name,
-        temperature: menuItem.category === "飲品" ? temperature : "",
+        temperature: ["飲品", "飲料"].includes(menuItem.category) ? temperature : "",
         price: menuItem.price,
         quantity,
         subtotal: menuItem.price * quantity
@@ -121,7 +133,7 @@ function validateAndBuildOrder(payload) {
 
   return {
     order: {
-      id: crypto.randomUUID(),
+      id: "",
       createdAt: new Date().toISOString(),
       status: "new",
       dayId: selectedDays.map((day) => day.id).join(","),
@@ -144,6 +156,7 @@ async function handleCreateOrder(req, res) {
     }
 
     const orders = JSON.parse(await fs.readFile(ORDERS_FILE, "utf8"));
+    result.order.id = nextOrderId(orders);
     orders.unshift(result.order);
     await fs.writeFile(ORDERS_FILE, `${JSON.stringify(orders, null, 2)}\n`, "utf8");
 

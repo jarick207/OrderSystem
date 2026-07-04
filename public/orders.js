@@ -5,6 +5,7 @@ const loginPanel = document.querySelector("#loginPanel");
 const recordsPanel = document.querySelector("#recordsPanel");
 const loginForm = document.querySelector("#loginForm");
 const loginMessage = document.querySelector("#loginMessage");
+const statsList = document.querySelector("#statsList");
 const API_BASE_URL = (window.ORDER_API_BASE_URL || "").replace(/\/$/, "");
 const AUTH_KEY = "orderSystemOrdersAuth";
 const ADMIN_USERNAME = "123";
@@ -36,6 +37,62 @@ function formatDate(value) {
 
 function normalizeItems(items) {
   return Array.isArray(items) ? items : [];
+}
+
+function itemLabel(item) {
+  return `${item.name}${item.temperature ? `（${item.temperature}）` : ""}`;
+}
+
+function buildStats(orders) {
+  const statsByDay = new Map();
+
+  orders.forEach((order) => {
+    normalizeItems(order.items).forEach((item) => {
+      const dayName = item.dayName || order.dayName || "未指定";
+      const key = `${item.id || item.name}::${item.temperature || ""}`;
+      if (!statsByDay.has(dayName)) {
+        statsByDay.set(dayName, new Map());
+      }
+
+      const dayStats = statsByDay.get(dayName);
+      const current = dayStats.get(key) || {
+        label: itemLabel(item),
+        quantity: 0,
+        total: 0
+      };
+      current.quantity += Number(item.quantity) || 0;
+      current.total += Number(item.subtotal) || (Number(item.price) || 0) * (Number(item.quantity) || 0);
+      dayStats.set(key, current);
+    });
+  });
+
+  return statsByDay;
+}
+
+function renderStats(orders) {
+  const statsByDay = buildStats(orders);
+
+  if (statsByDay.size === 0) {
+    statsList.innerHTML = '<p class="empty-state">目前沒有可統計的餐點。</p>';
+    return;
+  }
+
+  statsList.innerHTML = Array.from(statsByDay.entries())
+    .map(([dayName, dayStats]) => `
+      <section class="stats-day-group">
+        <h3>${dayName}</h3>
+        <div class="stats-rows">
+          ${Array.from(dayStats.values()).map((item) => `
+            <div class="stats-row">
+              <span>${item.label}</span>
+              <strong>${item.quantity} 份</strong>
+              <span>${money(item.total)}</span>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+    `)
+    .join("");
 }
 
 function renderOrders(orders) {
@@ -72,8 +129,10 @@ async function loadOrders() {
     const response = await fetch(apiUrl("/api/orders"));
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "讀取訂單失敗");
+    renderStats(data.orders);
     renderOrders(data.orders);
   } catch (error) {
+    statsList.innerHTML = "";
     ordersList.innerHTML = `<p class="empty-state">${error.message}</p>`;
   } finally {
     refreshOrders.disabled = false;
@@ -94,6 +153,7 @@ function showRecords() {
 function showLogin() {
   loginPanel.hidden = false;
   recordsPanel.hidden = true;
+  statsList.innerHTML = "";
   ordersList.innerHTML = "";
 }
 

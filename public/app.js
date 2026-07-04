@@ -1,11 +1,13 @@
 const state = {
   days: [],
   activeDayId: "",
+  activeCategoryByDay: new Map(),
   carts: new Map(),
   drinkTemperatures: new Map()
 };
 
 const dayTabs = document.querySelector("#dayTabs");
+const categoryTabs = document.querySelector("#categoryTabs");
 const menuList = document.querySelector("#menuList");
 const cartItems = document.querySelector("#cartItems");
 const cartTotal = document.querySelector("#cartTotal");
@@ -44,7 +46,7 @@ function money(value) {
 }
 
 function isDrink(item) {
-  return item.category === "飲品";
+  return ["飲品", "飲料"].includes(item.category);
 }
 
 function selectedTemperature(itemId) {
@@ -70,6 +72,16 @@ function activeCart() {
   }
 
   return state.carts.get(state.activeDayId);
+}
+
+function activeCategory(day) {
+  return state.activeCategoryByDay.get(day.id) || day.categoryTabs?.[0] || "";
+}
+
+function visibleMenuItems(day) {
+  const category = activeCategory(day);
+  if (!category) return day.menu;
+  return day.menu.filter((item) => item.category === category);
 }
 
 function allSelectedItems() {
@@ -118,6 +130,33 @@ function renderDayTabs() {
     .join("");
 }
 
+function renderCategoryTabs() {
+  const day = activeDay();
+  const tabs = day?.categoryTabs || [];
+
+  if (tabs.length === 0) {
+    categoryTabs.innerHTML = "";
+    categoryTabs.hidden = true;
+    return;
+  }
+
+  const current = activeCategory(day);
+  categoryTabs.hidden = false;
+  categoryTabs.innerHTML = tabs
+    .map((category) => `
+      <button
+        type="button"
+        class="${category === current ? "active" : ""}"
+        data-category="${category}"
+        role="tab"
+        aria-selected="${category === current}"
+      >
+        ${category}
+      </button>
+    `)
+    .join("");
+}
+
 function renderMenu() {
   const day = activeDay();
   const cart = activeCart();
@@ -127,7 +166,7 @@ function renderMenu() {
     return;
   }
 
-  menuList.innerHTML = day.menu
+  menuList.innerHTML = visibleMenuItems(day)
     .map((item) => {
       const quantity = cart.get(cartKey(item)) || 0;
       return `
@@ -219,8 +258,19 @@ dayTabs.addEventListener("click", (event) => {
   if (!button) return;
   state.activeDayId = button.dataset.dayId;
   renderDayTabs();
+  renderCategoryTabs();
   renderMenu();
   renderCart();
+});
+
+categoryTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-category]");
+  if (!button) return;
+  const day = activeDay();
+  if (!day) return;
+  state.activeCategoryByDay.set(day.id, button.dataset.category);
+  renderCategoryTabs();
+  renderMenu();
 });
 
 menuList.addEventListener("click", (event) => {
@@ -273,9 +323,10 @@ orderForm.addEventListener("submit", async (event) => {
     state.carts.clear();
     orderForm.reset();
     renderDayTabs();
+    renderCategoryTabs();
     renderMenu();
     renderCart();
-    formMessage.textContent = `訂單已送出，編號 ${result.order.id.slice(0, 8)}，合計 ${money(result.order.total)}。`;
+    formMessage.textContent = `訂單已送出，編號 ${result.order.id}，合計 ${money(result.order.total)}。`;
   } catch (error) {
     formMessage.textContent = error.message;
   } finally {
@@ -296,7 +347,13 @@ async function loadMenu() {
 
     state.days = Array.isArray(data.days) ? data.days : [{ id: "day1", name: "第一天", menu: data.menu }];
     state.activeDayId = state.days[0]?.id || "";
+    state.days.forEach((day) => {
+      if (day.categoryTabs?.length) {
+        state.activeCategoryByDay.set(day.id, day.categoryTabs[0]);
+      }
+    });
     renderDayTabs();
+    renderCategoryTabs();
     renderMenu();
     renderCart();
   } catch (error) {

@@ -126,6 +126,10 @@ h3 {
   margin-bottom: 20px;
 }
 
+.compact-heading {
+  margin-bottom: 12px;
+}
+
 .record-actions {
   display: flex;
   gap: 10px;
@@ -138,14 +142,20 @@ h3 {
   line-height: 1.6;
 }
 
-.day-tabs {
+.day-tabs,
+.category-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 18px;
 }
 
-.day-tabs button {
+.category-tabs {
+  margin-top: -8px;
+}
+
+.day-tabs button,
+.category-tabs button {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -156,7 +166,8 @@ h3 {
   cursor: pointer;
 }
 
-.day-tabs button.active {
+.day-tabs button.active,
+.category-tabs button.active {
   background: var(--leaf);
   color: #fff;
   border-color: var(--leaf);
@@ -367,6 +378,41 @@ textarea {
 .orders-list {
   display: grid;
   gap: 14px;
+}
+
+.stats-panel {
+  margin-bottom: 22px;
+}
+
+.stats-list {
+  display: grid;
+  gap: 14px;
+}
+
+.stats-day-group {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.stats-day-group h3 {
+  color: var(--leaf-dark);
+  margin-bottom: 12px;
+}
+
+.stats-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
 }
 
 .order-card {

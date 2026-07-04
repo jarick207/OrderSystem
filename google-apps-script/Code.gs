@@ -15,11 +15,14 @@ const MENU_BY_DAY = [
   {
     id: "day2",
     name: "第二天",
+    categoryTabs: ["漢堡", "吐司", "飲料"],
     menu: [
-      { id: "day2-veggie-bowl", name: "季節蔬食碗", category: "主餐", price: 115, description: "豆腐、時蔬、穀物飯" },
-      { id: "day2-beef-curry", name: "咖哩牛肉飯", category: "主餐", price: 150, description: "牛肉咖哩、白飯、季節蔬菜" },
-      { id: "day2-sweet-potato", name: "梅粉地瓜條", category: "小點", price: 55, description: "宜蘭風味甜鹹小點" },
-      { id: "day2-lemon-tea", name: "檸檬青茶", category: "飲品", price: 45, description: "清爽茶香與檸檬酸甜" }
+      { id: "day2-pork-burger", name: "豬肉漢堡", category: "漢堡", price: 65, description: "漢堡、豬肉排、蛋、蔬菜" },
+      { id: "day2-chicken-burger", name: "雞腿漢堡", category: "漢堡", price: 75, description: "漢堡、雞腿排、蛋、蔬菜" },
+      { id: "day2-ham-toast", name: "火腿吐司", category: "吐司", price: 45, description: "吐司、火腿、蛋、起司" },
+      { id: "day2-tuna-toast", name: "鮪魚吐司", category: "吐司", price: 50, description: "吐司、鮪魚、蛋、蔬菜" },
+      { id: "day2-black-tea", name: "紅茶", category: "飲料", price: 25, description: "可選冰或熱" },
+      { id: "day2-milk-tea", name: "奶茶", category: "飲料", price: 30, description: "可選冰或熱" }
     ]
   }
 ];
@@ -32,7 +35,8 @@ const HEADERS = [
   "狀態",
   "菜單日期",
   "姓名",
-  "餐點明細",
+  "第一天明細",
+  "第二天明細",
   "總金額",
   "備註",
   "原始資料"
@@ -67,6 +71,7 @@ function doPost(e) {
       return jsonResponse({ error: result.error }, 400);
     }
 
+    result.order.id = nextOrderId();
     appendOrder(result.order);
     return jsonResponse({ order: result.order }, 201);
   } catch (error) {
@@ -107,9 +112,8 @@ function getSheet() {
 
 function appendOrder(order) {
   const sheet = getSheet();
-  const itemText = order.items
-    .map((item) => `${item.name}${item.temperature ? `（${item.temperature}）` : ""} x ${item.quantity} = ${item.subtotal}`)
-    .join("\n");
+  const dayOneText = orderItemsText(order.items, "day1");
+  const dayTwoText = orderItemsText(order.items, "day2");
 
   sheet.appendRow([
     order.id,
@@ -117,11 +121,33 @@ function appendOrder(order) {
     order.status,
     order.dayName,
     order.customerName,
-    itemText,
+    dayOneText,
+    dayTwoText,
     order.total,
     order.note,
     JSON.stringify(order)
   ]);
+}
+
+function orderItemsText(items, dayId) {
+  return items
+    .filter((item) => item.dayId === dayId)
+    .map((item) => `${item.name}${item.temperature ? `（${item.temperature}）` : ""} x ${item.quantity} = ${item.subtotal}`)
+    .join("\n");
+}
+
+function orderNumberFromId(id) {
+  const match = String(id || "").match(/^ORD-(\d+)$/);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
+
+function nextOrderId() {
+  const sheet = getSheet();
+  const values = sheet.getDataRange().getValues();
+  const maxOrderNumber = values
+    .slice(1)
+    .reduce((max, row) => Math.max(max, orderNumberFromId(row[0])), 0);
+  return `ORD-${String(maxOrderNumber + 1).padStart(4, "0")}`;
 }
 
 function readOrders() {
@@ -129,7 +155,7 @@ function readOrders() {
   const values = sheet.getDataRange().getValues();
   return values.slice(1).filter((row) => row.some((cell) => cell !== "")).reverse().map((row) => {
     try {
-      const rawJson = row[8] || row[9];
+      const rawJson = row[9] || row[8];
       if (rawJson) {
         return JSON.parse(rawJson);
       }
@@ -142,8 +168,8 @@ function readOrders() {
         dayName: row[3],
         customerName: row[4],
         items: [],
-        total: row[6],
-        note: row[7]
+        total: row[7],
+        note: row[8]
       };
     }
   });
@@ -168,7 +194,7 @@ function validateAndBuildOrder(payload) {
         return null;
       }
 
-      if (menuItem.category === "飲品" && !["冰", "熱"].includes(temperature)) {
+      if (["飲品", "飲料"].includes(menuItem.category) && !["冰", "熱"].includes(temperature)) {
         return null;
       }
 
@@ -177,7 +203,7 @@ function validateAndBuildOrder(payload) {
         name: menuItem.name,
         dayId: day.id,
         dayName: day.name,
-        temperature: menuItem.category === "飲品" ? temperature : "",
+        temperature: ["飲品", "飲料"].includes(menuItem.category) ? temperature : "",
         price: menuItem.price,
         quantity,
         subtotal: menuItem.price * quantity
@@ -195,7 +221,7 @@ function validateAndBuildOrder(payload) {
 
   return {
     order: {
-      id: Utilities.getUuid(),
+      id: "",
       createdAt: new Date().toISOString(),
       status: "new",
       dayId: selectedDays.map((day) => day.id).join(","),
