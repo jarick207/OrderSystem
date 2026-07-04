@@ -108,7 +108,7 @@ function getSheet() {
 function appendOrder(order) {
   const sheet = getSheet();
   const itemText = order.items
-    .map((item) => `${item.name} x ${item.quantity} = ${item.subtotal}`)
+    .map((item) => `${item.name}${item.temperature ? `（${item.temperature}）` : ""} x ${item.quantity} = ${item.subtotal}`)
     .join("\n");
 
   sheet.appendRow([
@@ -150,15 +150,9 @@ function readOrders() {
 }
 
 function validateAndBuildOrder(payload) {
-  const dayId = normalizeText(payload.dayId);
-  const day = MENU_BY_DAY.find((entry) => entry.id === dayId);
   const customerName = normalizeText(payload.customerName);
   const note = normalizeText(payload.note);
   const items = Array.isArray(payload.items) ? payload.items : [];
-
-  if (!day) {
-    return { error: "請選擇菜單日期。" };
-  }
 
   if (!CUSTOMER_NAMES.includes(customerName)) {
     return { error: "請選擇訂購人。" };
@@ -166,15 +160,24 @@ function validateAndBuildOrder(payload) {
 
   const orderItems = items
     .map((item) => {
-      const menuItem = day.menu.find((entry) => entry.id === item.id);
+      const day = MENU_BY_DAY.find((entry) => entry.menu.some((menuItem) => menuItem.id === item.id));
+      const menuItem = day ? day.menu.find((entry) => entry.id === item.id) : null;
       const quantity = Number.parseInt(item.quantity, 10);
+      const temperature = normalizeText(item.temperature);
       if (!menuItem || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+        return null;
+      }
+
+      if (menuItem.category === "飲品" && !["冰", "熱"].includes(temperature)) {
         return null;
       }
 
       return {
         id: menuItem.id,
         name: menuItem.name,
+        dayId: day.id,
+        dayName: day.name,
+        temperature: menuItem.category === "飲品" ? temperature : "",
         price: menuItem.price,
         quantity,
         subtotal: menuItem.price * quantity
@@ -187,14 +190,16 @@ function validateAndBuildOrder(payload) {
   }
 
   const total = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+  const selectedDays = [...new Map(orderItems.map((item) => [item.dayId, item.dayName])).entries()]
+    .map(([id, name]) => ({ id, name }));
 
   return {
     order: {
       id: Utilities.getUuid(),
       createdAt: new Date().toISOString(),
       status: "new",
-      dayId: day.id,
-      dayName: day.name,
+      dayId: selectedDays.map((day) => day.id).join(","),
+      dayName: selectedDays.map((day) => day.name).join("、"),
       customerName,
       note,
       items: orderItems,

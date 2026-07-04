@@ -1,7 +1,8 @@
 const state = {
   days: [],
   activeDayId: "",
-  carts: new Map()
+  carts: new Map(),
+  drinkTemperatures: new Map()
 };
 
 const dayTabs = document.querySelector("#dayTabs");
@@ -42,6 +43,23 @@ function money(value) {
   return `$${Number(value).toLocaleString("zh-TW")}`;
 }
 
+function isDrink(item) {
+  return item.category === "飲品";
+}
+
+function selectedTemperature(itemId) {
+  return state.drinkTemperatures.get(itemId) || "冰";
+}
+
+function cartKey(item) {
+  return isDrink(item) ? `${item.id}::${selectedTemperature(item.id)}` : item.id;
+}
+
+function parseCartKey(key) {
+  const [id, temperature] = key.split("::");
+  return { id, temperature: temperature || "" };
+}
+
 function activeDay() {
   return state.days.find((day) => day.id === state.activeDayId) || state.days[0];
 }
@@ -54,8 +72,34 @@ function activeCart() {
   return state.carts.get(state.activeDayId);
 }
 
+function allSelectedItems() {
+  return state.days.flatMap((day) => {
+    const cart = state.carts.get(day.id);
+    if (!cart) return [];
+
+    return Array.from(cart.entries()).map(([key, quantity]) => {
+      const parsed = parseCartKey(key);
+      const item = day.menu.find((menuItem) => menuItem.id === parsed.id);
+      if (!item) return null;
+
+      return {
+        ...item,
+        dayId: day.id,
+        dayName: day.name,
+        temperature: parsed.temperature,
+        quantity
+      };
+    }).filter(Boolean);
+  });
+}
+
 function cartPayload() {
-  return Array.from(activeCart().entries()).map(([id, quantity]) => ({ id, quantity }));
+  return allSelectedItems().map((item) => ({
+    id: item.id,
+    dayId: item.dayId,
+    temperature: item.temperature,
+    quantity: item.quantity
+  }));
 }
 
 function renderDayTabs() {
@@ -85,7 +129,7 @@ function renderMenu() {
 
   menuList.innerHTML = day.menu
     .map((item) => {
-      const quantity = cart.get(item.id) || 0;
+      const quantity = cart.get(cartKey(item)) || 0;
       return `
         <article class="menu-card">
           <div>
@@ -95,6 +139,15 @@ function renderMenu() {
           </div>
           <div class="menu-actions">
             <strong>${money(item.price)}</strong>
+            ${isDrink(item) ? `
+              <label class="temperature-field">
+                冰熱
+                <select data-temperature-for="${item.id}">
+                  <option value="冰" ${selectedTemperature(item.id) === "冰" ? "selected" : ""}>冰</option>
+                  <option value="熱" ${selectedTemperature(item.id) === "熱" ? "selected" : ""}>熱</option>
+                </select>
+              </label>
+            ` : ""}
             <div class="stepper" aria-label="${item.name} 數量">
               <button type="button" data-action="decrease" data-id="${item.id}">-</button>
               <span>${quantity}</span>
@@ -108,29 +161,35 @@ function renderMenu() {
 }
 
 function renderCart() {
-  const day = activeDay();
-  const cart = activeCart();
-  const selectedItems = day
-    ? day.menu
-      .filter((item) => cart.has(item.id))
-      .map((item) => ({ ...item, quantity: cart.get(item.id) }))
-    : [];
+  const selectedItems = allSelectedItems();
 
   if (selectedItems.length === 0) {
     cartItems.className = "cart-items empty";
-    cartItems.textContent = day ? `${day.name}尚未選擇餐點` : "尚未選擇餐點";
+    cartItems.textContent = "尚未選擇餐點";
     cartTotal.textContent = money(0);
     return;
   }
 
   cartItems.className = "cart-items";
-  cartItems.innerHTML = selectedItems
-    .map((item) => `
-      <div class="cart-row">
-        <span>${item.name} x ${item.quantity}</span>
-        <strong>${money(item.price * item.quantity)}</strong>
-      </div>
-    `)
+  cartItems.innerHTML = state.days
+    .map((day) => {
+      const dayItems = selectedItems.filter((item) => item.dayId === day.id);
+      if (dayItems.length === 0) return "";
+
+      return `
+        <section class="cart-day-group">
+          <h3>${day.name}</h3>
+          <ol>
+            ${dayItems.map((item) => `
+              <li>
+                <span>${item.name}${item.temperature ? `（${item.temperature}）` : ""} x ${item.quantity}</span>
+                <strong>${money(item.price * item.quantity)}</strong>
+              </li>
+            `).join("")}
+          </ol>
+        </section>
+      `;
+    })
     .join("");
 
   const total = selectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -138,13 +197,18 @@ function renderCart() {
 }
 
 function updateQuantity(id, delta) {
+  const day = activeDay();
+  const item = day?.menu.find((menuItem) => menuItem.id === id);
+  if (!item) return;
+
   const cart = activeCart();
-  const current = cart.get(id) || 0;
+  const key = cartKey(item);
+  const current = cart.get(key) || 0;
   const next = Math.max(0, Math.min(99, current + delta));
   if (next === 0) {
-    cart.delete(id);
+    cart.delete(key);
   } else {
-    cart.set(id, next);
+    cart.set(key, next);
   }
   renderMenu();
   renderCart();
@@ -166,26 +230,32 @@ menuList.addEventListener("click", (event) => {
   updateQuantity(button.dataset.id, delta);
 });
 
+menuList.addEventListener("change", (event) => {
+  const select = event.target.closest("select[data-temperature-for]");
+  if (!select) return;
+  state.drinkTemperatures.set(select.dataset.temperatureFor, select.value);
+  renderMenu();
+});
+
 orderForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   formMessage.textContent = "";
-  const day = activeDay();
-  const cart = activeCart();
+  const selectedItems = allSelectedItems();
 
-  if (!day) {
+  if (state.days.length === 0) {
     formMessage.textContent = "目前沒有可訂購的菜單。";
     return;
   }
 
-  if (cart.size === 0) {
+  if (selectedItems.length === 0) {
     formMessage.textContent = "請先選擇餐點。";
     return;
   }
 
   const formData = new FormData(orderForm);
   const payload = {
-    dayId: day.id,
-    dayName: day.name,
+    dayIds: [...new Set(selectedItems.map((item) => item.dayId))],
+    dayNames: [...new Set(selectedItems.map((item) => item.dayName))],
     customerName: formData.get("customerName"),
     note: formData.get("note"),
     items: cartPayload()
@@ -200,7 +270,7 @@ orderForm.addEventListener("submit", async (event) => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "送出失敗");
 
-    cart.clear();
+    state.carts.clear();
     orderForm.reset();
     renderDayTabs();
     renderMenu();

@@ -56,7 +56,7 @@ function renderOrders(orders) {
         </div>
         <p>菜單日期：${order.dayName || order.dayId || "未指定"}</p>
         <div class="order-items">
-          ${normalizeItems(order.items).map((item) => `<span>${item.name} x ${item.quantity}</span>`).join("") || "<span>餐點資料未記錄</span>"}
+          ${normalizeItems(order.items).map((item) => `<span>${item.dayName ? `${item.dayName}｜` : ""}${item.name}${item.temperature ? `（${item.temperature}）` : ""} x ${item.quantity}</span>`).join("") || "<span>餐點資料未記錄</span>"}
         </div>
         ${order.note ? `<p class="note">備註：${order.note}</p>` : ""}
         <small>訂單編號：${order.id}</small>

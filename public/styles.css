@@ -205,6 +205,20 @@ h3 {
   justify-content: space-between;
   gap: 14px;
   margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.temperature-field {
+  display: grid;
+  gap: 5px;
+  min-width: 88px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.temperature-field select {
+  min-height: 40px;
+  padding: 8px 10px;
 }
 
 .stepper {
@@ -258,6 +272,42 @@ h3 {
   display: flex;
   justify-content: space-between;
   gap: 16px;
+}
+
+.cart-day-group {
+  display: grid;
+  gap: 8px;
+}
+
+.cart-day-group h3 {
+  color: var(--leaf-dark);
+  font-size: 16px;
+}
+
+.cart-day-group ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 24px;
+}
+
+.cart-day-group li {
+  padding-left: 2px;
+}
+
+.cart-day-group li::marker {
+  color: var(--tomato);
+  font-weight: 800;
+}
+
+.cart-day-group li span {
+  display: inline-block;
+  max-width: calc(100% - 82px);
+}
+
+.cart-day-group li strong {
+  float: right;
+  margin-left: 12px;
 }
 
 .total-row {
