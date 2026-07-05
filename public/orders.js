@@ -7,16 +7,38 @@ const loginForm = document.querySelector("#loginForm");
 const loginMessage = document.querySelector("#loginMessage");
 const statsList = document.querySelector("#statsList");
 const API_BASE_URL = (window.ORDER_API_BASE_URL || "").replace(/\/$/, "");
-const AUTH_KEY = "orderSystemOrdersAuth";
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "admin0236";
+const AUTH_TOKEN_KEY = "orderSystemAdminToken";
 
-function apiUrl(path) {
+function apiUrl(path, params = {}) {
   if (API_BASE_URL) {
-    return `${API_BASE_URL}?path=${encodeURIComponent(path)}`;
+    const searchParams = new URLSearchParams({ path, ...params });
+    return `${API_BASE_URL}?${searchParams.toString()}`;
   }
 
-  return `${API_BASE_URL}${path}`;
+  const searchParams = new URLSearchParams(params);
+  return `${API_BASE_URL}${path}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+}
+
+function adminToken() {
+  return sessionStorage.getItem(AUTH_TOKEN_KEY) || "";
+}
+
+function adminPostOptions(payload) {
+  const body = JSON.stringify(payload);
+
+  if (API_BASE_URL) {
+    return {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body
+    };
+  }
+
+  return {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body
+  };
 }
 
 function money(value) {
@@ -126,9 +148,9 @@ async function loadOrders() {
   refreshOrders.disabled = true;
   refreshOrders.textContent = "讀取中...";
   try {
-    const response = await fetch(apiUrl("/api/orders"));
+    const response = await fetch(apiUrl("/api/orders", { token: adminToken() }));
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "讀取訂單失敗");
+    if (!response.ok || !Array.isArray(data.orders)) throw new Error(data.error || "讀取訂單失敗");
     renderStats(data.orders);
     renderOrders(data.orders);
   } catch (error) {
@@ -141,7 +163,7 @@ async function loadOrders() {
 }
 
 function isAuthenticated() {
-  return sessionStorage.getItem(AUTH_KEY) === "true";
+  return Boolean(adminToken());
 }
 
 function showRecords() {
@@ -157,25 +179,35 @@ function showLogin() {
   ordersList.innerHTML = "";
 }
 
-loginForm.addEventListener("submit", (event) => {
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  loginMessage.textContent = "";
   const formData = new FormData(loginForm);
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "").trim();
+  const submitButton = loginForm.querySelector('button[type="submit"]');
 
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    sessionStorage.setItem(AUTH_KEY, "true");
+  submitButton.disabled = true;
+  submitButton.textContent = "登入中...";
+
+  try {
+    const response = await fetch(apiUrl("/api/admin/login"), adminPostOptions({ username, password }));
+    const data = await response.json();
+    if (!response.ok || !data.token) throw new Error(data.error || "帳號或密碼錯誤。");
+
+    sessionStorage.setItem(AUTH_TOKEN_KEY, data.token);
     loginForm.reset();
-    loginMessage.textContent = "";
     showRecords();
-    return;
+  } catch (error) {
+    loginMessage.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "登入";
   }
-
-  loginMessage.textContent = "帳號或密碼錯誤。";
 });
 
 logoutButton.addEventListener("click", () => {
-  sessionStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(AUTH_TOKEN_KEY);
   showLogin();
 });
 

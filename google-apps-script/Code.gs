@@ -1,5 +1,5 @@
 const SHEET_NAME = "Orders";
-const ADMIN_TOKEN = "";
+const ADMIN_SESSION_SECONDS = 21600;
 
 const MENU_BY_DAY = [
   {
@@ -125,7 +125,7 @@ const MENU_BY_DAY = [
 ];
 
 const CUSTOMER_NAMES = ["大舅舅", "小舅舅", "小阿姨", "258", "翁蝦", "竹南", "新豐", "台灣大道", "呱", "英傑叔叔"];
-const ADD_EGG_CATEGORIES = ["漢堡","抓餅", "鐵板麵"];
+const ADD_EGG_CATEGORIES = ["漢堡", "吐司", "抓餅", "鐵板麵"];
 const ADD_EGG_PRICE = 15;
 
 const HEADERS = [
@@ -148,7 +148,7 @@ function doGet(e) {
   }
 
   if (path === "/api/orders") {
-    if (ADMIN_TOKEN && getParam(e, "token") !== ADMIN_TOKEN) {
+    if (!isValidAdminToken(getParam(e, "token"))) {
       return jsonResponse({ error: "未授權讀取訂單。" }, 403);
     }
     return jsonResponse({ orders: readOrders() });
@@ -159,6 +159,10 @@ function doGet(e) {
 
 function doPost(e) {
   const path = normalizePath(e);
+  if (path === "/api/admin/login") {
+    return handleAdminLogin(e);
+  }
+
   if (path !== "/api/orders") {
     return jsonResponse({ error: "Not found" }, 404);
   }
@@ -176,6 +180,36 @@ function doPost(e) {
   } catch (error) {
     return jsonResponse({ error: "訂單儲存失敗，請稍後再試。" }, 500);
   }
+}
+
+function handleAdminLogin(e) {
+  try {
+    const payload = JSON.parse(e.postData.contents || "{}");
+    const username = normalizeText(payload.username);
+    const password = normalizeText(payload.password);
+    const properties = PropertiesService.getScriptProperties();
+    const expectedUsername = properties.getProperty("ADMIN_USERNAME");
+    const expectedPassword = properties.getProperty("ADMIN_PASSWORD");
+
+    if (!expectedUsername || !expectedPassword) {
+      return jsonResponse({ error: "後台帳號密碼尚未設定。" }, 500);
+    }
+
+    if (username !== expectedUsername || password !== expectedPassword) {
+      return jsonResponse({ error: "帳號或密碼錯誤。" }, 401);
+    }
+
+    const token = Utilities.getUuid();
+    CacheService.getScriptCache().put(`admin:${token}`, "true", ADMIN_SESSION_SECONDS);
+    return jsonResponse({ token });
+  } catch (error) {
+    return jsonResponse({ error: "登入失敗，請稍後再試。" }, 400);
+  }
+}
+
+function isValidAdminToken(token) {
+  if (!token) return false;
+  return CacheService.getScriptCache().get(`admin:${token}`) === "true";
 }
 
 function normalizePath(e) {

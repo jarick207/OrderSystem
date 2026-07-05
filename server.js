@@ -133,6 +133,9 @@ const MENU_BY_DAY = [
 const CUSTOMER_NAMES = ["大舅舅", "小舅舅", "小阿姨", "258", "翁蝦", "竹南", "新豐", "台灣大道", "呱", "英傑叔叔"];
 const ADD_EGG_CATEGORIES = ["漢堡", "吐司", "抓餅", "鐵板麵"];
 const ADD_EGG_PRICE = 15;
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin0236";
+const adminTokens = new Set();
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -178,6 +181,15 @@ function normalizeText(value) {
 
 function canAddEgg(menuItem) {
   return ADD_EGG_CATEGORIES.includes(menuItem.category) && !menuItem.id.endsWith("-add-egg");
+}
+
+function makeAdminToken() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function requestToken(req) {
+  const requestUrl = new URL(req.url, `http://${req.headers.host}`);
+  return requestUrl.searchParams.get("token") || "";
 }
 
 function orderNumberFromId(id) {
@@ -277,6 +289,25 @@ async function handleCreateOrder(req, res) {
   }
 }
 
+async function handleAdminLogin(req, res) {
+  try {
+    const payload = await readJsonBody(req);
+    const username = normalizeText(payload.username);
+    const password = normalizeText(payload.password);
+
+    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+      sendJson(res, 401, { error: "帳號或密碼錯誤。" });
+      return;
+    }
+
+    const token = makeAdminToken();
+    adminTokens.add(token);
+    sendJson(res, 200, { token });
+  } catch {
+    sendJson(res, 400, { error: "登入失敗，請稍後再試。" });
+  }
+}
+
 async function serveStatic(req, res) {
   const requestPath = new URL(req.url, `http://${req.headers.host}`).pathname;
   const safePath = requestPath === "/" ? "/index.html" : decodeURIComponent(requestPath);
@@ -308,9 +339,19 @@ async function handleRequest(req, res) {
     return;
   }
 
-  if (req.url === "/api/orders" && req.method === "GET") {
+  if (req.url.startsWith("/api/orders") && req.method === "GET") {
+    if (!adminTokens.has(requestToken(req))) {
+      sendJson(res, 403, { error: "未授權讀取訂單。" });
+      return;
+    }
+
     const orders = JSON.parse(await fs.readFile(ORDERS_FILE, "utf8"));
     sendJson(res, 200, { orders });
+    return;
+  }
+
+  if (req.url === "/api/admin/login" && req.method === "POST") {
+    await handleAdminLogin(req, res);
     return;
   }
 
