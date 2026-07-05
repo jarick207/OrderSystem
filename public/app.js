@@ -17,7 +17,7 @@ const formMessage = document.querySelector("#formMessage");
 const API_BASE_URL = (window.ORDER_API_BASE_URL || "").replace(/\/$/, "");
 const SIZE_LABELS = ["大", "中", "小"];
 const OPTION_CATEGORIES = ["飲品", "飲料", "夏日限定", "冬季限定"];
-const ADD_EGG_CATEGORIES = ["漢堡", "吐司", "抓餅", "鐵板麵"];
+const ADD_EGG_CATEGORIES = ["抓餅", "鐵板麵"];
 const ADD_EGG_PRICE = 15;
 
 function apiUrl(path) {
