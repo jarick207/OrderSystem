@@ -119,40 +119,82 @@ function renderStats(orders) {
     .join("");
 }
 
-function csvCell(value) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+function xmlCell(value, type = "String") {
+  const text = String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  return `<Cell><Data ss:Type="${type}">${text}</Data></Cell>`;
 }
 
-function statsRows(orders) {
+function statsRowsByDay(orders) {
   const statsByDay = buildStats(orders);
-  return Array.from(statsByDay.entries()).flatMap(([dayName, dayStats]) => (
-    Array.from(dayStats.values()).map((item) => ({
-      item: `${dayName}｜${item.label}`,
-      quantity: item.quantity,
-      total: item.total
-    }))
-  ));
+  const preferredOrder = ["第一天", "第二天"];
+  return Array.from(statsByDay.entries())
+    .sort(([left], [right]) => {
+      const leftIndex = preferredOrder.indexOf(left);
+      const rightIndex = preferredOrder.indexOf(right);
+      return (leftIndex === -1 ? 99 : leftIndex) - (rightIndex === -1 ? 99 : rightIndex);
+    })
+    .map(([dayName, dayStats]) => ({
+      dayName,
+      rows: Array.from(dayStats.values()).map((item) => ({
+        item: item.label,
+        quantity: item.quantity,
+        total: item.total
+      }))
+    }));
 }
 
-function exportStatsCsv() {
-  const rows = statsRows(latestOrders);
-  if (rows.length === 0) {
+function worksheetXml(dayName, rows) {
+  const safeSheetName = String(dayName || "未指定").replace(/[\[\]:*?/\\]/g, "").slice(0, 31) || "未指定";
+  const bodyRows = rows.map((row) => `
+    <Row>
+      ${xmlCell(row.item)}
+      ${xmlCell(row.quantity, "Number")}
+      ${xmlCell(row.total, "Number")}
+    </Row>
+  `).join("");
+
+  return `
+    <Worksheet ss:Name="${safeSheetName}">
+      <Table>
+        <Row>
+          ${xmlCell("品項")}
+          ${xmlCell("數量")}
+          ${xmlCell("金額")}
+        </Row>
+        ${bodyRows}
+      </Table>
+    </Worksheet>
+  `;
+}
+
+function exportStatsExcel() {
+  const sheets = statsRowsByDay(latestOrders).filter((sheet) => sheet.rows.length > 0);
+  if (sheets.length === 0) {
     loginMessage.textContent = "";
     ordersList.innerHTML = '<p class="empty-state">目前沒有可匯出的統計資料。</p>';
     return;
   }
 
-  const csv = [
-    ["品項", "數量", "金額"].map(csvCell).join(","),
-    ...rows.map((row) => [row.item, row.quantity, row.total].map(csvCell).join(","))
-  ].join("\r\n");
-  const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" });
+  const workbook = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:x="urn:schemas-microsoft-com:office:excel"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  ${sheets.map((sheet) => worksheetXml(sheet.dayName, sheet.rows)).join("")}
+</Workbook>`;
+
+  const blob = new Blob([workbook], { type: "application/vnd.ms-excel;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
 
   link.href = url;
-  link.download = `order-stats-${stamp}.csv`;
+  link.download = `order-stats-${stamp}.xls`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -257,7 +299,7 @@ logoutButton.addEventListener("click", () => {
 });
 
 refreshOrders.addEventListener("click", loadOrders);
-exportStats.addEventListener("click", exportStatsCsv);
+exportStats.addEventListener("click", exportStatsExcel);
 
 if (isAuthenticated()) {
   showRecords();
