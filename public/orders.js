@@ -6,8 +6,10 @@ const recordsPanel = document.querySelector("#recordsPanel");
 const loginForm = document.querySelector("#loginForm");
 const loginMessage = document.querySelector("#loginMessage");
 const statsList = document.querySelector("#statsList");
+const exportStats = document.querySelector("#exportStats");
 const API_BASE_URL = (window.ORDER_API_BASE_URL || "").replace(/\/$/, "");
 const AUTH_TOKEN_KEY = "orderSystemAdminToken";
+let latestOrders = [];
 
 function apiUrl(path, params = {}) {
   if (API_BASE_URL) {
@@ -117,6 +119,46 @@ function renderStats(orders) {
     .join("");
 }
 
+function csvCell(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function statsRows(orders) {
+  const statsByDay = buildStats(orders);
+  return Array.from(statsByDay.entries()).flatMap(([dayName, dayStats]) => (
+    Array.from(dayStats.values()).map((item) => ({
+      item: `${dayName}｜${item.label}`,
+      quantity: item.quantity,
+      total: item.total
+    }))
+  ));
+}
+
+function exportStatsCsv() {
+  const rows = statsRows(latestOrders);
+  if (rows.length === 0) {
+    loginMessage.textContent = "";
+    ordersList.innerHTML = '<p class="empty-state">目前沒有可匯出的統計資料。</p>';
+    return;
+  }
+
+  const csv = [
+    ["品項", "數量", "金額"].map(csvCell).join(","),
+    ...rows.map((row) => [row.item, row.quantity, row.total].map(csvCell).join(","))
+  ].join("\r\n");
+  const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+
+  link.href = url;
+  link.download = `order-stats-${stamp}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function renderOrders(orders) {
   if (orders.length === 0) {
     ordersList.innerHTML = '<p class="empty-state">目前還沒有訂單。</p>';
@@ -151,9 +193,11 @@ async function loadOrders() {
     const response = await fetch(apiUrl("/api/orders", { token: adminToken() }));
     const data = await response.json();
     if (!response.ok || !Array.isArray(data.orders)) throw new Error(data.error || "讀取訂單失敗");
+    latestOrders = data.orders;
     renderStats(data.orders);
     renderOrders(data.orders);
   } catch (error) {
+    latestOrders = [];
     statsList.innerHTML = "";
     ordersList.innerHTML = `<p class="empty-state">${error.message}</p>`;
   } finally {
@@ -177,6 +221,7 @@ function showLogin() {
   recordsPanel.hidden = true;
   statsList.innerHTML = "";
   ordersList.innerHTML = "";
+  latestOrders = [];
 }
 
 loginForm.addEventListener("submit", async (event) => {
@@ -212,6 +257,7 @@ logoutButton.addEventListener("click", () => {
 });
 
 refreshOrders.addEventListener("click", loadOrders);
+exportStats.addEventListener("click", exportStatsCsv);
 
 if (isAuthenticated()) {
   showRecords();
